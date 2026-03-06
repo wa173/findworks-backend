@@ -1,11 +1,10 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
 
 const router = express.Router();
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  "https://mhldpzkgwolbrdtmbixw.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1obGRwemtnd29sYnJkdG1iaXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjQ4NjE4NiwiZXhwIjoyMDg4MDYyMTg2fQ.JbEtr2yX8qZjCYsZa02TMTNAXvFyoO5vcH0h_L-Sabs"
 );
 
 // GET ALL REVIEWS FOR A WORKER
@@ -38,8 +37,8 @@ router.post('/', async (req, res) => {
       .from('reviews')
       .insert([{
         worker_id,
-        reviewer_id:   reviewer_id   || null,  // ← now saved
-        reviewer_name: reviewer_name || null,   // ← fixed column name (was revier_name typo in DB — make sure you renamed it)
+        reviewer_id:   reviewer_id   || null,
+        reviewer_name: reviewer_name || null,
         rating:        parseInt(rating),
         comment:       comment       || null,
       }])
@@ -75,6 +74,13 @@ router.post('/', async (req, res) => {
 // DELETE A REVIEW
 router.delete('/:id', async (req, res) => {
   try {
+    // Get the worker_id before deleting
+    const { data: review } = await supabase
+      .from('reviews')
+      .select('worker_id')
+      .eq('id', req.params.id)
+      .single();
+
     const { error } = await supabase
       .from('reviews')
       .delete()
@@ -82,14 +88,7 @@ router.delete('/:id', async (req, res) => {
 
     if (error) throw error;
 
-    // After deleting, recalculate avg rating for that worker
-    const { id } = req.params;
-    const { data: review } = await supabase
-      .from('reviews')
-      .select('worker_id')
-      .eq('id', id)
-      .single();
-
+    // Recalculate avg rating after deletion
     if (review) {
       const { data: remaining } = await supabase
         .from('reviews')

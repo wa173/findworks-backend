@@ -1,11 +1,10 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
 
 const router = express.Router();
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  "https://mhldpzkgwolbrdtmbixw.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1obGRwemtnd29sYnJkdG1iaXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjQ4NjE4NiwiZXhwIjoyMDg4MDYyMTg2fQ.JbEtr2yX8qZjCYsZa02TMTNAXvFyoO5vcH0h_L-Sabs"
 );
 
 // GET ALL WORKERS
@@ -44,23 +43,12 @@ router.get('/:id', async (req, res) => {
 
 // CREATE WORKER PROFILE
 router.post('/', async (req, res) => {
-  const {
-    user_id,
-    name,
-    category,
-    category_label,
-    district,
-    bio,
-    skills,
-    price,
-    whatsapp,
-  } = req.body;
+  const { user_id, name, category, category_label, district, bio, skills, price, whatsapp } = req.body;
 
   if (!user_id || !name || !category || !district) {
     return res.status(400).json({ error: 'Required fields missing' });
   }
 
-  // prevent duplicate profiles for same user
   try {
     const { data: existing } = await supabase
       .from('workers')
@@ -71,9 +59,7 @@ router.post('/', async (req, res) => {
     if (existing) {
       return res.status(400).json({ error: 'You already have a worker profile. Please update it instead.' });
     }
-  } catch (_) {
-    // no existing profile found — safe to continue
-  }
+  } catch (_) {}
 
   try {
     const { data, error } = await supabase
@@ -84,11 +70,11 @@ router.post('/', async (req, res) => {
         category,
         category_label: category_label || null,
         district,
-        bio:      bio      || null,
-        skills:   Array.isArray(skills) ? skills : [],  // ensure array
-        price:    price    || null,
-        whatsapp: whatsapp || null,
-        verified: false,              // always starts unverified
+        bio:          bio      || null,
+        skills:       Array.isArray(skills) ? skills : [],
+        price:        price    || null,
+        whatsapp:     whatsapp || null,
+        verified:     false,
         avg_rating:   0,
         review_count: 0,
       }])
@@ -105,16 +91,7 @@ router.post('/', async (req, res) => {
 
 // UPDATE WORKER PROFILE
 router.put('/:id', async (req, res) => {
-  const {
-    name,
-    category,
-    category_label,
-    district,
-    bio,
-    skills,
-    price,
-    whatsapp,
-  } = req.body;
+  const { name, category, category_label, district, bio, skills, price, whatsapp } = req.body;
 
   try {
     const { data, error } = await supabase
