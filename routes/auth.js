@@ -1,15 +1,19 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 
 const router = express.Router();
+
+// Service role client for admin operations
 const supabase = createClient(
   "https://mhldpzkgwolbrdtmbixw.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1obGRwemtnd29sYnJkdG1iaXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjQ4NjE4NiwiZXhwIjoyMDg4MDYyMTg2fQ.JbEtr2yX8qZjCYsZa02TMTNAXvFyoO5vcH0h_L-Sabs"
 );
 
-const JWT_SECRET = "findworks2025secret";
+// Anon client for auth operations
+const supabaseAnon = createClient(
+  "https://mhldpzkgwolbrdtmbixw.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1obGRwemtnd29sYnJkdG1iaXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0ODYxODYsImV4cCI6MjA4ODA2MjE4Nn0.hHPp2JxZ0RYt3Zdp56yaW9cFiwitw86FUN32BuJySuI"
+);
 
 // REGISTER
 router.post('/register', async (req, res) => {
@@ -20,55 +24,44 @@ router.post('/register', async (req, res) => {
   }
 
   try {
-    const { data: existing } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single();
+    // Create auth user — Supabase sends verification email automatically
+    const { data: authData, error: authError } = await supabaseAnon.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: 'https://findworks.netlify.app',
+        data: { name, role }
+      }
+    });
 
-    if (existing) {
-      return res.status(400).json({ error: 'Email already registered' });
-    }
+    if (authError) throw authError;
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const authUser = authData.user;
+    if (!authUser) throw new Error('Failed to create account');
 
-    const { data: user, error } = await supabase
+    // Save extra info in our users table
+    const { error: dbError } = await supabase
       .from('users')
       .insert([{
+        id:       authUser.id,
         name,
         email,
-        password: hashedPassword,
+        password: 'supabase_auth',
         role,
         district: district || null,
         phone:    phone    || null,
-      }])
-      .select()
-      .single();
+      }]);
 
-    if (error) throw error;
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    if (dbError) throw dbError;
 
     res.status(201).json({
-      message: 'Account created successfully',
-      token,
-      user: {
-        id:       user.id,
-        name:     user.name,
-        email:    user.email,
-        role:     user.role,
-        district: user.district,
-        phone:    user.phone,
-      }
+      message: 'Account created! Please check your email to verify your account before logging in.',
+      needsVerification: true,
     });
 
   } catch (err) {
     console.error('Register error:', err.message);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
@@ -81,26 +74,31 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const { data: user, error } = await supabase
+    const { data: authData, error: authError } = await supabaseAnon.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authError) {
+      if (authError.message.includes('Email not confirmed')) {
+        return res.status(401).json({ error: 'Please verify your email before logging in. Check your inbox.' });
+      }
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const authUser = authData.user;
+    const token = authData.session.access_token;
+
+    // Get extra user info from our users table
+    const { data: user, error: dbError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .eq('id', authUser.id)
       .single();
 
-    if (error || !user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+    if (dbError || !user) {
+      return res.status(404).json({ error: 'User profile not found' });
     }
-
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
 
     res.json({
       message: 'Login successful',
@@ -118,6 +116,86 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err.message);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// FORGOT PASSWORD
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    const { error } = await supabaseAnon.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://findworks.netlify.app?reset=true',
+    });
+
+    if (error) throw error;
+
+    res.json({ message: 'Password reset email sent! Check your inbox.' });
+  } catch (err) {
+    console.error('Forgot password error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// RESET PASSWORD
+router.post('/reset-password', async (req, res) => {
+  const { access_token, new_password } = req.body;
+
+  if (!access_token || !new_password) {
+    return res.status(400).json({ error: 'Token and new password are required' });
+  }
+
+  try {
+    const { error: sessionError } = await supabaseAnon.auth.setSession({
+      access_token,
+      refresh_token: access_token,
+    });
+
+    if (sessionError) throw sessionError;
+
+    const { error } = await supabaseAnon.auth.updateUser({
+      password: new_password,
+    });
+
+    if (error) throw error;
+
+    res.json({ message: 'Password reset successfully! You can now log in.' });
+  } catch (err) {
+    console.error('Reset password error:', err.message);
+    res.status(500).json({ error: 'Failed to reset password. Please request a new reset link.' });
+  }
+});
+
+// CHANGE PASSWORD
+router.post('/change-password', async (req, res) => {
+  const { access_token, new_password } = req.body;
+
+  if (!access_token || !new_password) {
+    return res.status(400).json({ error: 'Token and new password are required' });
+  }
+
+  try {
+    const { error: sessionError } = await supabaseAnon.auth.setSession({
+      access_token,
+      refresh_token: access_token,
+    });
+
+    if (sessionError) throw sessionError;
+
+    const { error } = await supabaseAnon.auth.updateUser({
+      password: new_password,
+    });
+
+    if (error) throw error;
+
+    res.json({ message: 'Password changed successfully!' });
+  } catch (err) {
+    console.error('Change password error:', err.message);
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
@@ -140,10 +218,8 @@ router.delete('/delete/:id', async (req, res) => {
     }
 
     await supabase.from('jobs').delete().eq('user_id', id);
-
-    const { error } = await supabase.from('users').delete().eq('id', id);
-
-    if (error) throw error;
+    await supabase.from('users').delete().eq('id', id);
+    await supabase.auth.admin.deleteUser(id);
 
     res.json({ message: 'Account deleted successfully' });
   } catch (err) {
