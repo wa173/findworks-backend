@@ -118,6 +118,26 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+
+// VERIFY / UNVERIFY WORKER (admin only)
+router.patch('/verify/:id', async (req, res) => {
+  const { verified } = req.body;
+  try {
+    const { data, error } = await supabase
+      .from('workers')
+      .update({ verified: verified })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('Verify worker error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // DELETE WORKER PROFILE
 router.delete('/:id', async (req, res) => {
   try {
