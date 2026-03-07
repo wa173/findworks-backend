@@ -105,6 +105,7 @@ router.put('/:id', async (req, res) => {
         skills:   Array.isArray(skills) ? skills : [],
         price:    price    || null,
         whatsapp: whatsapp || null,
+        photo:    req.body.photo || null,
       })
       .eq('id', req.params.id)
       .select()
