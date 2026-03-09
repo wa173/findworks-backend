@@ -77,6 +77,7 @@ router.post('/', async (req, res) => {
         verified:     false,
         avg_rating:   0,
         review_count: 0,
+        availability: req.body.availability || 'available',
       }])
       .select()
       .single();
@@ -104,8 +105,9 @@ router.put('/:id', async (req, res) => {
         bio:      bio      || null,
         skills:   Array.isArray(skills) ? skills : [],
         price:    price    || null,
-        whatsapp: whatsapp || null,
-        photo:    req.body.photo || null,
+        whatsapp:     whatsapp || null,
+        photo:        req.body.photo || null,
+        availability: req.body.availability || 'available',
       })
       .eq('id', req.params.id)
       .select()
