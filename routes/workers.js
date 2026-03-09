@@ -45,7 +45,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   const { user_id, name, category, category_label, district, bio, skills, price, whatsapp } = req.body;
 
-  if (!user_id || !name || !category || !district) {
+  if (!user_id || !name || !category) {
     return res.status(400).json({ error: 'Required fields missing' });
   }
 
