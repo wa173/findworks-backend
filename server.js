@@ -3,10 +3,11 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const authRoutes    = require('./routes/auth');
-const workerRoutes  = require('./routes/workers');
-const jobRoutes     = require('./routes/jobs');
-const reviewRoutes  = require('./routes/reviews');
+const authRoutes        = require('./routes/auth');
+const workerRoutes      = require('./routes/workers');
+const jobRoutes         = require('./routes/jobs');
+const reviewRoutes      = require('./routes/reviews');
+const applicationRoutes = require('./routes/applications');
 
 const app = express();
 
@@ -45,15 +46,17 @@ app.use(express.json());
 app.use(generalLimiter); // Apply general limit to all routes
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
-app.use('/api/auth',    authLimiter,  authRoutes);    // Strict limit on auth
-app.use('/api/workers', workerRoutes);
-app.use('/api/jobs',    jobRoutes);
-app.use('/api/reviews', reviewRoutes);
+app.use('/api/auth',         authLimiter, authRoutes);
+app.use('/api/workers',      workerRoutes);
+app.use('/api/jobs',         jobRoutes);
+app.use('/api/reviews',      reviewRoutes);
+app.use('/api/applications', applicationRoutes);
 
 // Post-specific limits
-app.use('/api/workers', postLimiter);
-app.use('/api/jobs',    postLimiter);
-app.use('/api/reviews', postLimiter);
+app.use('/api/workers',      postLimiter);
+app.use('/api/jobs',         postLimiter);
+app.use('/api/reviews',      postLimiter);
+app.use('/api/applications', postLimiter);
 
 // ── HEALTH CHECK ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
