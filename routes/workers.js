@@ -1,35 +1,33 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
 
 const router = express.Router();
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  "https://mhldpzkgwolbrdtmbixw.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1obGRwemtnd29sYnJkdG1iaXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjQ4NjE4NiwiZXhwIjoyMDg4MDYyMTg2fQ.JbEtr2yX8qZjCYsZa02TMTNAXvFyoO5vcH0h_L-Sabs"
 );
 
-// ── ADMIN KEY MIDDLEWARE ───────────────────────────────────────────────────────
+const ADMIN_KEY = "Wat20052006$$..";
+
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
-  if (!key || key !== process.env.ADMIN_KEY) {
+  if (!key || key !== ADMIN_KEY) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
 }
 
-// ── GET ALL WORKERS ───────────────────────────────────────────────────────────
-// Public: returns only verified workers
-// Admin (X-Admin-Key header present & valid): returns ALL workers including unverified
+// GET ALL WORKERS
+// Public: verified only | Admin: all including unverified
 router.get('/', async (req, res) => {
   try {
-    const isAdmin = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
+    const isAdmin = req.headers['x-admin-key'] === ADMIN_KEY;
 
     let query = supabase
       .from('workers')
       .select('*')
       .order('created_at', { ascending: false });
 
-    // Public only sees verified workers
     if (!isAdmin) {
       query = query.eq('verified', true);
     }
@@ -43,11 +41,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ── GET SINGLE WORKER ─────────────────────────────────────────────────────────
+// GET SINGLE WORKER
 router.get('/:id', async (req, res) => {
-  // Skip if the path is 'verify' — that's handled by the PATCH route below
-  if (req.params.id === 'verify') return next();
-
   try {
     const { data, error } = await supabase
       .from('workers')
@@ -64,7 +59,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── CREATE WORKER PROFILE ─────────────────────────────────────────────────────
+// CREATE WORKER PROFILE
 router.post('/', async (req, res) => {
   const { user_id, name, category, category_label, district, bio, skills, price, whatsapp } = req.body;
 
@@ -72,7 +67,6 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Required fields missing' });
   }
 
-  // Check for existing profile
   try {
     const { data: existing } = await supabase
       .from('workers')
@@ -99,7 +93,7 @@ router.post('/', async (req, res) => {
         price:        price    || null,
         whatsapp:     whatsapp || null,
         photo:        req.body.photo || null,
-        verified:     false,          // Always starts unverified
+        verified:     false,
         avg_rating:   0,
         review_count: 0,
         availability: req.body.availability || 'available',
@@ -115,7 +109,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ── UPDATE WORKER PROFILE ─────────────────────────────────────────────────────
+// UPDATE WORKER PROFILE
 router.put('/:id', async (req, res) => {
   const { name, category, category_label, district, bio, skills, price, whatsapp } = req.body;
 
@@ -146,7 +140,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// ── VERIFY / UNVERIFY WORKER (admin only) ─────────────────────────────────────
+// VERIFY / UNVERIFY WORKER (admin only)
 router.patch('/verify/:id', requireAdmin, async (req, res) => {
   const { verified } = req.body;
 
@@ -171,7 +165,7 @@ router.patch('/verify/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// ── DELETE WORKER PROFILE ─────────────────────────────────────────────────────
+// DELETE WORKER PROFILE
 router.delete('/:id', async (req, res) => {
   try {
     const { error } = await supabase

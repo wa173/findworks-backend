@@ -1,36 +1,25 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
 
 const router = express.Router();
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  "https://mhldpzkgwolbrdtmbixw.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1obGRwemtnd29sYnJkdG1iaXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjQ4NjE4NiwiZXhwIjoyMDg4MDYyMTg2fQ.JbEtr2yX8qZjCYsZa02TMTNAXvFyoO5vcH0h_L-Sabs"
 );
 
-// ── ADMIN KEY MIDDLEWARE ───────────────────────────────────────────────────────
-// Protects admin-only operations (approve, delete by admin)
-function requireAdmin(req, res, next) {
-  const key = req.headers['x-admin-key'];
-  if (!key || key !== process.env.ADMIN_KEY) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-}
+const ADMIN_KEY = "Wat20052006$$..";
 
-// ── GET ALL JOBS ──────────────────────────────────────────────────────────────
-// Public: returns only approved jobs (status != pending_approval)
-// Admin (X-Admin-Key header): returns ALL jobs including pending
+// GET ALL JOBS
+// Public: approved only | Admin: all including pending_approval
 router.get('/', async (req, res) => {
   try {
-    const isAdmin = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
+    const isAdmin = req.headers['x-admin-key'] === ADMIN_KEY;
 
     let query = supabase
       .from('jobs')
       .select('*')
       .order('created_at', { ascending: false });
 
-    // Public users only see approved jobs
     if (!isAdmin) {
       query = query.neq('status', 'pending_approval');
     }
@@ -44,7 +33,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ── GET SINGLE JOB ────────────────────────────────────────────────────────────
+// GET SINGLE JOB
 router.get('/:id', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -62,22 +51,11 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── POST A JOB ────────────────────────────────────────────────────────────────
-// Jobs are created with status 'pending_approval' — admin must approve before going live
+// POST A JOB — always starts as pending_approval
 router.post('/', async (req, res) => {
   const {
-    user_id,
-    client_name,
-    title,
-    category,
-    category_label,
-    district,
-    budget,
-    description,
-    requirements,
-    phone,
-    email,
-    status,
+    user_id, client_name, title, category, category_label,
+    district, budget, description, requirements, phone, email, status,
   } = req.body;
 
   if (!title || !description) {
@@ -90,17 +68,16 @@ router.post('/', async (req, res) => {
       .insert([{
         user_id:        user_id        || null,
         client_name:    client_name    || null,
-        title:          title,
+        title,
         category:       category       || null,
         category_label: category_label || null,
         district:       district       || null,
         budget:         budget         || null,
-        description:    description,
+        description,
         requirements:   requirements   || null,
         phone:          phone          || null,
         email:          email          || null,
-        // Always start as pending_approval unless admin is posting directly
-        status: status || 'pending_approval',
+        status:         status         || 'pending_approval',
       }])
       .select()
       .single();
@@ -113,10 +90,9 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ── PATCH A JOB (status update) ───────────────────────────────────────────────
-// Used by:
-//   - Admin: approve (pending_approval → open), reject (delete instead)
-//   - Job owner: update status (open → inprogress → filled)
+// PATCH JOB STATUS
+// Admin: can approve (pending_approval -> open)
+// Job owner: can update (open -> inprogress -> filled)
 router.patch('/:id', async (req, res) => {
   const { status } = req.body;
 
@@ -125,11 +101,10 @@ router.patch('/:id', async (req, res) => {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
   }
 
-  // Only admin can approve (set status to 'open' from 'pending_approval')
+  // Only admin can move a job from pending_approval to open
   if (status === 'open') {
-    const isAdmin = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
+    const isAdmin = req.headers['x-admin-key'] === ADMIN_KEY;
     if (!isAdmin) {
-      // Check if the job is currently pending — if so, block
       const { data: existing } = await supabase
         .from('jobs')
         .select('status')
@@ -159,14 +134,13 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// ── DELETE A JOB ──────────────────────────────────────────────────────────────
+// DELETE A JOB
 router.delete('/:id', async (req, res) => {
-  const { id } = req.params;
   try {
     const { error } = await supabase
       .from('jobs')
       .delete()
-      .eq('id', id);
+      .eq('id', req.params.id);
 
     if (error) throw error;
     res.json({ message: 'Job deleted successfully' });

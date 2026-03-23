@@ -74,7 +74,6 @@ router.post('/', async (req, res) => {
 // DELETE A REVIEW
 router.delete('/:id', async (req, res) => {
   try {
-    // Get the worker_id before deleting
     const { data: review } = await supabase
       .from('reviews')
       .select('worker_id')

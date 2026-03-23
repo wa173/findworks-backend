@@ -24,7 +24,6 @@ router.post('/register', async (req, res) => {
   }
 
   try {
-    // Create auth user — Supabase sends verification email automatically
     const { data: authData, error: authError } = await supabaseAnon.auth.signUp({
       email,
       password,
@@ -39,7 +38,6 @@ router.post('/register', async (req, res) => {
     const authUser = authData.user;
     if (!authUser) throw new Error('Failed to create account');
 
-    // Save extra info in our users table
     const { error: dbError } = await supabase
       .from('users')
       .insert([{
@@ -89,7 +87,6 @@ router.post('/login', async (req, res) => {
     const authUser = authData.user;
     const token = authData.session.access_token;
 
-    // Get extra user info from our users table
     const { data: user, error: dbError } = await supabase
       .from('users')
       .select('*')
@@ -133,7 +130,6 @@ router.post('/forgot-password', async (req, res) => {
     });
 
     if (error) throw error;
-
     res.json({ message: 'Password reset email sent! Check your inbox.' });
   } catch (err) {
     console.error('Forgot password error:', err.message);
@@ -157,10 +153,7 @@ router.post('/reset-password', async (req, res) => {
 
     if (sessionError) throw sessionError;
 
-    const { error } = await supabaseAnon.auth.updateUser({
-      password: new_password,
-    });
-
+    const { error } = await supabaseAnon.auth.updateUser({ password: new_password });
     if (error) throw error;
 
     res.json({ message: 'Password reset successfully! You can now log in.' });
@@ -186,10 +179,7 @@ router.post('/change-password', async (req, res) => {
 
     if (sessionError) throw sessionError;
 
-    const { error } = await supabaseAnon.auth.updateUser({
-      password: new_password,
-    });
-
+    const { error } = await supabaseAnon.auth.updateUser({ password: new_password });
     if (error) throw error;
 
     res.json({ message: 'Password changed successfully!' });
